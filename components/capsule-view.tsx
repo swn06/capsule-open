@@ -1,24 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { FirebaseError } from "firebase/app";
 import { doc, getDoc } from "firebase/firestore";
 import { getDownloadURL, ref } from "firebase/storage";
+import { CapsuleFigure } from "@/components/capsule-figure";
+import { KeywordChips, MoodPhrase } from "@/components/capsule-mood";
+import { WeatherCard } from "@/components/capsule-weather";
 import { Countdown } from "@/components/countdown";
 import {
   CAPSULES_COLLECTION,
   capsuleTitle,
+  deleteOpenedCapsule,
   formatDateTime,
   isCapsuleOpen,
   type CapsuleRecord,
 } from "@/lib/capsule";
 import { getDb, getFirebaseStorage } from "@/lib/firebase";
+import { useAuth } from "@/lib/use-auth";
 import { useNow } from "@/lib/use-now";
 
 const isDev = process.env.NODE_ENV === "development";
 
 export function CapsuleView({ capsuleId }: { capsuleId: string }) {
   const now = useNow();
+  const { user } = useAuth();
   const [capsule, setCapsule] = useState<CapsuleRecord | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +76,9 @@ export function CapsuleView({ capsuleId }: { capsuleId: string }) {
 
   const naturallyOpen = isCapsuleOpen(capsule?.openAt, now);
   const canViewContent = naturallyOpen || (isDev && devPreview);
+  const canDelete = Boolean(
+    naturallyOpen && user && capsule?.ownerUid && capsule.ownerUid === user.uid,
+  );
   const photoCount = capsule?.photoPaths?.length ?? 0;
 
   useEffect(() => {
@@ -133,6 +144,7 @@ export function CapsuleView({ capsuleId }: { capsuleId: string }) {
             capsuleId={capsuleId}
             photoUrls={photoUrls}
             photosLoading={photosLoading}
+            canDelete={canDelete}
             devPreview={devPreview && !naturallyOpen}
             onExitDevPreview={() => setDevPreview(false)}
           />
@@ -165,9 +177,19 @@ function CapsuleSealedView({
 }) {
   return (
     <>
-      <div className="border-b border-amber-100/80 bg-gradient-to-b from-amber-50/80 to-white/40 px-8 py-10 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100/80 text-2xl">
-          🔒
+      <div
+        className="border-b border-amber-100/80 px-8 py-10 text-center"
+        style={
+          capsule.mood
+            ? {
+                background: `linear-gradient(180deg, ${capsule.mood.colors.from}66, rgba(255,255,255,0.4))`,
+                borderColor: `${capsule.mood.colors.accent}22`,
+              }
+            : undefined
+        }
+      >
+        <div className="mx-auto flex justify-center">
+          <CapsuleFigure mood={capsule.mood} size="lg" sealed dirty={0.72} />
         </div>
         <p className="mt-5 text-xs tracking-[0.2em] text-amber-800/70">SEALED</p>
         <h1 className="mt-2 font-serif text-4xl font-medium tracking-tight text-stone-800 sm:text-5xl">
@@ -176,7 +198,7 @@ function CapsuleSealedView({
         <p className="mt-4 text-sm leading-relaxed tracking-wide text-stone-600">
           아직 열람 기간이 남았어요.
           <br />
-          열람일이 되면 편지와 사진을 열 수 있어요.
+          편지와 사진은 열람일에 열리고, 지금은 키워드만 볼 수 있어요.
         </p>
       </div>
 
@@ -188,7 +210,20 @@ function CapsuleSealedView({
           </div>
         </div>
 
+        {capsule.mood?.keywords?.length ? (
+          <div className="mt-8 rounded-3xl border border-stone-100 bg-white/80 px-6 py-6">
+            <KeywordChips keywords={capsule.mood.keywords} hint />
+          </div>
+        ) : null}
+
+        {capsule.weather ? (
+          <div className="mt-8">
+            <WeatherCard weather={capsule.weather} />
+          </div>
+        ) : null}
+
         <dl className="mt-8 grid gap-4 sm:grid-cols-2">
+          <DetailItem label="묻은 날" value={formatDateTime(capsule.createdAt)} />
           <DetailItem label="열람일" value={formatDateTime(capsule.openAt)} />
           <DetailItem label="묻은 사진" value={`${photoCount}장`} />
           <DetailItem label="캡슐 번호" value={capsuleId} mono />
@@ -222,6 +257,7 @@ function CapsuleOpenView({
   capsuleId,
   photoUrls,
   photosLoading,
+  canDelete,
   devPreview,
   onExitDevPreview,
 }: {
@@ -229,14 +265,25 @@ function CapsuleOpenView({
   capsuleId: string;
   photoUrls: string[];
   photosLoading: boolean;
+  canDelete: boolean;
   devPreview: boolean;
   onExitDevPreview: () => void;
 }) {
   return (
     <>
-      <div className="border-b border-emerald-100/80 bg-gradient-to-b from-emerald-50/70 to-white/40 px-8 py-10 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100/80 text-2xl">
-          ✉️
+      <div
+        className="border-b border-amber-100/80 px-8 py-10 text-center"
+        style={
+          capsule.mood
+            ? {
+                background: `linear-gradient(180deg, ${capsule.mood.colors.from}66, rgba(255,255,255,0.4))`,
+                borderColor: `${capsule.mood.colors.accent}22`,
+              }
+            : undefined
+        }
+      >
+        <div className="mx-auto flex justify-center">
+          <CapsuleFigure mood={capsule.mood} size="lg" dirty={0.14} />
         </div>
         <p className="mt-5 text-xs tracking-[0.2em] text-emerald-800/70">
           {devPreview ? "DEV PREVIEW" : "OPENED"}
@@ -252,6 +299,23 @@ function CapsuleOpenView({
       </div>
 
       <div className="px-8 py-10">
+        {capsule.mood ? (
+          <div className="mb-8">
+            <MoodPhrase mood={capsule.mood} />
+            {capsule.mood.keywords?.length ? (
+              <div className="mt-4">
+                <KeywordChips keywords={capsule.mood.keywords} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {capsule.weather ? (
+          <div className="mb-8">
+            <WeatherCard weather={capsule.weather} />
+          </div>
+        ) : null}
+
         {capsule.letter ? (
           <section>
             <h2 className="text-xs tracking-[0.18em] text-stone-400">편지</h2>
@@ -302,6 +366,13 @@ function CapsuleOpenView({
             대시보드로
           </Link>
 
+          {canDelete ? (
+            <CapsuleDeleteControls
+              capsuleId={capsuleId}
+              photoPaths={capsule.photoPaths ?? []}
+            />
+          ) : null}
+
           {isDev && devPreview ? (
             <button
               type="button"
@@ -314,6 +385,84 @@ function CapsuleOpenView({
         </div>
       </div>
     </>
+  );
+}
+
+function CapsuleDeleteControls({
+  capsuleId,
+  photoPaths,
+}: {
+  capsuleId: string;
+  photoPaths: string[];
+}) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    if (deleting) {
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      await deleteOpenedCapsule(capsuleId, photoPaths);
+      router.replace("/");
+    } catch (caught) {
+      console.error(caught);
+      if (
+        caught instanceof FirebaseError &&
+        (caught.code === "permission-denied" || caught.code === "storage/unauthorized")
+      ) {
+        setError("지울 권한이 없어요. 봉인된 캡슐은 지울 수 없어요.");
+      } else {
+        setError("캡슐을 지우지 못했어요. 잠시 후 다시 시도해 주세요.");
+      }
+      setDeleting(false);
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="text-xs tracking-wide text-stone-300 underline-offset-4 transition-colors hover:text-rose-400 hover:underline"
+      >
+        캡슐 지우기
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <p className="text-sm tracking-wide text-stone-500">지운 캡슐은 되돌릴 수 없어요.</p>
+      {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="rounded-full bg-rose-600 px-5 py-2 text-sm tracking-wide text-white transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {deleting ? "지우는 중..." : "지우기"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setConfirming(false);
+            setError(null);
+          }}
+          disabled={deleting}
+          className="text-sm tracking-wide text-stone-400 underline-offset-4 transition-colors hover:text-stone-600 hover:underline disabled:opacity-60"
+        >
+          취소
+        </button>
+      </div>
+    </div>
   );
 }
 

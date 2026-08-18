@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   collection,
@@ -9,13 +8,20 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
-import { GoogleSignInButton } from "@/components/auth-controls";
+import { BuryRitual } from "@/components/bury-ritual";
+import { LiveWeatherPanel } from "@/components/capsule-weather";
+import { useSeasonTheme } from "@/components/season-shell";
 import {
   CAPSULES_COLLECTION,
   parseOpenAt,
 } from "@/lib/capsule";
 import { getDb, getFirebaseAuth, getFirebaseStorage } from "@/lib/firebase";
+import { googleAuthErrorMessage, isGoogleAuthError, signInWithGoogle } from "@/lib/google-auth";
+import { fetchCapsuleMood, type CapsuleMood } from "@/lib/mood";
+import { treeSeason } from "@/lib/season-theme";
 import { useAuth } from "@/lib/use-auth";
+import { useLiveWeather } from "@/lib/use-live-weather";
+import { fetchWeatherSnapshot, getBrowserCoords } from "@/lib/weather";
 
 function getSafeExt(file: File): string {
   const mime = file.type.split("/")[1]?.toLowerCase() ?? "";
@@ -27,6 +33,8 @@ function getSafeExt(file: File): string {
 
 export default function NewCapsulePage() {
   const { user, ready } = useAuth();
+  const liveWeather = useLiveWeather();
+  const theme = useSeasonTheme();
   const [to, setTo] = useState("");
   const [letter, setLetter] = useState("");
   const [openAt, setOpenAt] = useState("");
@@ -36,6 +44,8 @@ export default function NewCapsulePage() {
   const [progress, setProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [capsuleId, setCapsuleId] = useState<string | null>(null);
+  const [savedMood, setSavedMood] = useState<CapsuleMood | null>(null);
+  const [savedLetter, setSavedLetter] = useState("");
 
   useEffect(() => {
     const urls = files.map((file) => URL.createObjectURL(file));
@@ -53,6 +63,8 @@ export default function NewCapsulePage() {
     setError(null);
     setProgress("");
     setCapsuleId(null);
+    setSavedMood(null);
+    setSavedLetter("");
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -61,9 +73,7 @@ export default function NewCapsulePage() {
       return;
     }
 
-    const currentUser = getFirebaseAuth().currentUser;
-    if (!currentUser) {
-      setError("로그인 먼저!");
+    if (!ready) {
       return;
     }
 
@@ -74,9 +84,23 @@ export default function NewCapsulePage() {
 
     setSubmitting(true);
     setError(null);
-    setProgress("업로드 되는 중...");
 
     try {
+      let currentUser = getFirebaseAuth().currentUser;
+      if (!currentUser) {
+        setProgress("구글로 로그인하고 있어요...");
+        currentUser = await signInWithGoogle();
+        if (!currentUser) {
+          setError("캡슐을 묻으려면 로그인이 필요해요.");
+          return;
+        }
+      }
+
+      setProgress("그날의 날씨를 담고 있어요...");
+
+      const weatherPromise = liveWeather.weather
+        ? Promise.resolve(liveWeather.weather)
+        : getBrowserCoords().then(fetchWeatherSnapshot);
       const db = getDb();
       const storage = getFirebaseStorage();
       const capsuleRef = doc(collection(db, CAPSULES_COLLECTION));
@@ -92,7 +116,13 @@ export default function NewCapsulePage() {
         photoPaths.push(path);
       }
 
-      setProgress("업로드 되는 중... 캡슐 정보를 저장하고 있어요");
+      setProgress("그날의 한마디를 짓고 있어요...");
+      const weather = await weatherPromise;
+      const mood = await fetchCapsuleMood({
+        weather,
+        letter,
+        to: to.trim(),
+      });
 
       await setDoc(capsuleRef, {
         to: to.trim(),
@@ -101,90 +131,44 @@ export default function NewCapsulePage() {
         createdAt: serverTimestamp(),
         ownerUid: currentUser.uid,
         photoPaths,
+        ...(weather ? { weather } : {}),
+        ...(mood ? { mood } : {}),
       });
 
+      setSavedMood(mood);
+      setSavedLetter(letter);
       setCapsuleId(nextCapsuleId);
     } catch (caught) {
       console.error(caught);
-      setError("업로드에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      if (isGoogleAuthError(caught)) {
+        setError(
+          googleAuthErrorMessage(caught) ??
+            "캡슐을 묻으려면 로그인이 필요해요.",
+        );
+      } else {
+        setError("업로드에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      }
     } finally {
       setSubmitting(false);
       setProgress("");
     }
   }
 
-  if (!ready) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-6 py-16">
-        <div
-          className="h-40 w-full max-w-lg animate-pulse rounded-3xl bg-white/70"
-          aria-hidden="true"
-        />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-6 py-16">
-        <main className="w-full max-w-lg rounded-3xl border border-amber-100/80 bg-white/75 px-8 py-12 text-center shadow-[0_28px_70px_-24px_rgba(92,58,32,0.28)] backdrop-blur-sm sm:px-10">
-          <h1 className="font-serif text-4xl font-medium tracking-tight text-stone-800">
-            로그인하고 묻기
-          </h1>
-          <p className="mt-4 text-sm leading-relaxed tracking-wide text-stone-500">
-            캡슐을 묻으려면 먼저 로그인해 주세요.
-          </p>
-          <div className="mt-8 flex justify-center">
-            <GoogleSignInButton />
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   if (capsuleId) {
     return (
-      <div className="flex flex-1 items-center justify-center px-6 py-16">
-        <main className="w-full max-w-lg rounded-3xl border border-amber-100/80 bg-white/75 px-8 py-12 text-center shadow-[0_28px_70px_-24px_rgba(92,58,32,0.28)] backdrop-blur-sm sm:px-10">
-          <p className="text-sm tracking-wide text-stone-500">업로드 완료</p>
-          <h1 className="mt-3 font-serif text-4xl font-medium tracking-tight text-stone-800 sm:text-5xl">
-            캡슐을 묻었어요
-          </h1>
-          <p className="mt-6 text-sm leading-relaxed tracking-wide text-stone-600">
-            대시보드에서 카운트다운을 볼 수 있어요.
-          </p>
-          <p className="mt-4 break-all font-mono text-xs text-stone-400">
-            캡슐 번호 {capsuleId}
-          </p>
-          <div className="mt-10 flex flex-col items-center gap-4">
-            <Link
-              href="/"
-              className="inline-flex items-center justify-center rounded-full bg-stone-800 px-8 py-3.5 text-sm tracking-wide text-amber-50 transition-colors hover:bg-stone-700"
-            >
-              대시보드 보기
-            </Link>
-            <Link
-              href={`/capsule/${capsuleId}`}
-              className="text-sm tracking-wide text-stone-400 underline-offset-4 transition-colors hover:text-stone-600 hover:underline"
-            >
-              이 캡슐 열기
-            </Link>
-            <button
-              type="button"
-              onClick={resetForm}
-              className="text-sm tracking-wide text-stone-400 underline-offset-4 transition-colors hover:text-stone-600 hover:underline"
-            >
-              다른 캡슐 묻기
-            </button>
-          </div>
-        </main>
-      </div>
+      <BuryRitual
+        capsuleId={capsuleId}
+        mood={savedMood}
+        season={treeSeason(theme)}
+        letter={savedLetter}
+        onAgain={resetForm}
+      />
     );
   }
 
   return (
     <div className="flex flex-1 items-center justify-center px-6 py-16">
-      <main className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-amber-100/80 bg-white/75 px-8 py-12 shadow-[0_28px_70px_-24px_rgba(92,58,32,0.28)] backdrop-blur-sm sm:px-10">
+      <main className="season-card relative w-full max-w-lg overflow-hidden rounded-3xl border px-8 py-12 shadow-[0_28px_70px_-24px_rgba(92,58,32,0.28)] backdrop-blur-sm sm:px-10">
         {submitting ? (
           <div
             className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white/80 backdrop-blur-sm"
@@ -201,11 +185,25 @@ export default function NewCapsulePage() {
           </div>
         ) : null}
 
-        <h1 className="text-center font-serif text-4xl font-medium tracking-tight text-stone-800 sm:text-5xl">
+        <p className="text-center text-xs tracking-[0.22em] text-stone-500">
+          {theme.emoji} {theme.label}
+        </p>
+        <h1 className="mt-3 text-center font-serif text-4xl font-medium tracking-tight text-stone-800 sm:text-5xl">
           캡슐 묻기
         </h1>
+        <p className="mt-3 text-center text-sm leading-relaxed tracking-wide text-stone-500">
+          {theme.greeting}
+        </p>
 
-        <form onSubmit={handleSubmit} className="mt-10 flex flex-col gap-6">
+        <div className="mt-8">
+          <LiveWeatherPanel
+            live={liveWeather}
+            compact
+            caption="캡슐에 담길 지금"
+          />
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-6">
           <label className="flex flex-col gap-2 text-left">
             <span className="text-sm tracking-wide text-stone-600">받는 사람</span>
             <input
@@ -270,10 +268,15 @@ export default function NewCapsulePage() {
 
           {error ? <p className="text-sm text-rose-600">{error}</p> : null}
 
+          <p className="text-xs leading-relaxed tracking-wide text-stone-400">
+            지금 하늘이 배경이 되고, 편지는 유리병 안에 말려 나무 아래로 묻혀요.
+            열람일이 가까워지면 흙 묻은 병이 땅속에서 올라옵니다.
+          </p>
+
           <button
             type="submit"
-            disabled={submitting}
-            className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-stone-800 px-8 py-3.5 text-sm tracking-wide text-amber-50 transition-colors hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={submitting || !ready}
+            className="season-cta mt-2 inline-flex items-center justify-center gap-2 rounded-full px-8 py-3.5 text-sm tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? (
               <>
@@ -287,6 +290,11 @@ export default function NewCapsulePage() {
               "캡슐 묻기"
             )}
           </button>
+          {ready && !user ? (
+            <p className="text-center text-xs tracking-wide text-stone-400">
+              적은 내용은 그대로 두고, 묻기 버튼을 누르면 구글 로그인이 열려요.
+            </p>
+          ) : null}
         </form>
       </main>
     </div>

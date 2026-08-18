@@ -1,12 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-} from "firebase/auth";
+import { signOut } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase";
+import { googleAuthErrorMessage, signInWithGoogle } from "@/lib/google-auth";
 import { useAuth } from "@/lib/use-auth";
 
 function GoogleIcon() {
@@ -32,26 +29,6 @@ function GoogleIcon() {
   );
 }
 
-function authErrorMessage(error: unknown) {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof error.code === "string"
-  ) {
-    if (
-      error.code === "auth/popup-closed-by-user" ||
-      error.code === "auth/cancelled-popup-request"
-    ) {
-      return null;
-    }
-    if (error.code === "auth/unauthorized-domain") {
-      return `Google 로그인은 localhost만 기본 허용입니다. 지금 주소(${window.location.hostname})를 승인 도메인에 넣어야 합니다.`;
-    }
-  }
-  return "구글 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.";
-}
-
 export function GoogleSignInButton({
   label = "Google로 계속하기",
 }: {
@@ -64,11 +41,9 @@ export function GoogleSignInButton({
     setError(null);
     setPending(true);
     try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
-      await signInWithPopup(getFirebaseAuth(), provider);
+      await signInWithGoogle();
     } catch (caught) {
-      setError(authErrorMessage(caught));
+      setError(googleAuthErrorMessage(caught));
     } finally {
       setPending(false);
     }
@@ -86,6 +61,41 @@ export function GoogleSignInButton({
         {pending ? "로그인 중..." : label}
       </button>
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+    </div>
+  );
+}
+
+export function SignInLink({ label = "로그인" }: { label?: string }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleGoogleSignIn() {
+    setError(null);
+    setPending(true);
+    try {
+      await signInWithGoogle();
+    } catch (caught) {
+      setError(googleAuthErrorMessage(caught));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end">
+      <button
+        type="button"
+        onClick={handleGoogleSignIn}
+        disabled={pending}
+        className="text-sm tracking-wide text-stone-400 underline-offset-4 transition-colors hover:text-stone-600 hover:underline disabled:opacity-60"
+      >
+        {pending ? "로그인 중..." : label}
+      </button>
+      {error ? (
+        <p className="sr-only" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -110,14 +120,14 @@ export function AccountMenu() {
   if (!ready) {
     return (
       <div
-        className="h-9 w-28 animate-pulse rounded-full bg-stone-200/80"
+        className="h-9 w-16 animate-pulse rounded-full bg-stone-200/80"
         aria-hidden="true"
       />
     );
   }
 
   if (!user) {
-    return <GoogleSignInButton />;
+    return <SignInLink />;
   }
 
   const displayName = user.displayName ?? user.email ?? "친구";

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { FirebaseAnalytics } from "@/components/firebase-analytics";
+import { SeasonShell } from "@/components/season-shell";
 import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
 
@@ -25,10 +26,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="ko"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-gradient-to-b from-amber-50 via-rose-50 to-stone-100 text-stone-800">
-        <SiteHeader />
-        <div className="flex flex-1 flex-col">{children}</div>
-        <FirebaseAnalytics />
+      <body className="flex min-h-full flex-col text-stone-800">
+        <SeasonShell>
+          <SiteHeader />
+          <div className="flex flex-1 flex-col">{children}</div>
+          <FirebaseAnalytics />
+        </SeasonShell>
       </body>
     </html>
   );

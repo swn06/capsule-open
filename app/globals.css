@@ -3,6 +3,16 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --season-from: #fff7ed;
+  --season-via: #fff1f2;
+  --season-to: #f5f5f4;
+  --season-header: rgba(255, 255, 255, 0.7);
+  --season-header-border: rgba(254, 243, 199, 0.8);
+  --season-card: rgba(255, 255, 255, 0.7);
+  --season-border: rgba(254, 243, 199, 0.8);
+  --season-button: #292524;
+  --season-button-text: #fffbeb;
+  --season-glow: rgba(251, 191, 36, 0.16);
 }
 
 @theme inline {
@@ -16,4 +26,197 @@ body {
   background: transparent;
   color: #292524;
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes rain-fall {
+  from { background-position: 0 0; }
+  to { background-position: 18px 48px; }
+}
+
+@keyframes snow-drift {
+  from { background-position: 0 0; }
+  to { background-position: 40px 120px; }
+}
+
+@keyframes cloud-drift {
+  from { transform: translateX(-8%); }
+  to { transform: translateX(8%); }
+}
+
+@keyframes sun-breathe {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.08); }
+}
+
+@keyframes heat-rise {
+  from { transform: translateY(12px); opacity: 0.15; }
+  to { transform: translateY(-28px); opacity: 0; }
+}
+
+@keyframes mist-roll {
+  0%, 100% { transform: translateX(-6%) scaleX(1); opacity: 0.25; }
+  50% { transform: translateX(6%) scaleX(1.08); opacity: 0.45; }
+}
+
+@keyframes petal-fall {
+  from { transform: translate3d(0, -10%, 0) rotate(0deg); }
+  to { transform: translate3d(12%, 110%, 0) rotate(220deg); }
+}
+
+@keyframes leaf-fall {
+  from { transform: translate3d(0, -8%, 0) rotate(0deg); }
+  to { transform: translate3d(-14%, 110%, 0) rotate(-160deg); }
+}
+
+@keyframes float-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes fruit-sway {
+  0%, 100% { transform: rotate(-4deg) translateY(0); }
+  50% { transform: rotate(4deg) translateY(-6px); }
+}
+
+@keyframes soil-emerge {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -5px); }
+}
+
+@keyframes paper-fold {
+  0% { transform: scale(1) rotate(0deg); opacity: 1; }
+  55% { transform: scale(0.55, 0.18) rotate(-8deg); opacity: 1; }
+  100% { transform: scale(0.12) rotate(-18deg); opacity: 0; }
+}
+
+@keyframes capsule-pop {
+  0% { transform: scale(0.2); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes bury-fly {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  100% { transform: translate(-50%, 42vh) scale(0.7); }
+}
+
+@keyframes bury-sink {
+  0% { transform: translate(-50%, 42vh) scale(0.7); opacity: 1; }
+  100% { transform: translate(-50%, 58vh) scale(0.2); opacity: 0; }
+}
+
+@keyframes dirt-burst {
+  0% { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+@keyframes flash-pop {
+  0% { opacity: 0; }
+  30% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+.weather-rain {
+  background-image: repeating-linear-gradient(
+    198deg,
+    transparent 0 16px,
+    rgba(255, 255, 255, 0.28) 16px 17px
+  );
+  animation: rain-fall 0.55s linear infinite;
+}
+
+.weather-storm {
+  background-image: repeating-linear-gradient(
+    205deg,
+    transparent 0 12px,
+    rgba(226, 232, 240, 0.42) 12px 13px
+  );
+  animation: rain-fall 0.32s linear infinite;
+}
+
+.weather-snow {
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.95) 1.4px, transparent 1.6px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.7) 1px, transparent 1.2px);
+  background-size: 52px 64px, 28px 40px;
+  animation: snow-drift 7s linear infinite;
+}
+
+.float-bob {
+  animation: float-bob 4.6s ease-in-out infinite;
+}
+
+.soil-emerge {
+  animation: soil-emerge 3.8s ease-in-out infinite;
+}
+
+.season-header {
+  background: var(--season-header);
+  border-color: var(--season-header-border);
+}
+
+.season-cta {
+  background: var(--season-button);
+  color: var(--season-button-text);
+}
+
+.season-card {
+  background: var(--season-card);
+  border-color: var(--season-border);
+}
+
+.season-cta {
+  background: var(--season-button);
+  color: var(--season-button-text);
+}
+
+.season-cta:hover {
+  filter: brightness(1.08);
+}
+
+.season-header {
+  background: var(--season-header);
+  border-bottom-color: var(--season-header-border);
+}
+
+.season-card {
+  background: var(--season-card);
+  border-color: var(--season-border);
+}
+
+@keyframes lantern-rise {
+  0% {
+    transform: translate3d(0, 10vh, 0);
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(-16px, -110vh, 0);
+    opacity: 0.05;
+  }
+}
+
+@keyframes sparkle-twinkle {
+  0%,
+  100% {
+    transform: scale(0.4);
+    opacity: 0.15;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.95;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weather-rain,
+  .weather-storm,
+  .weather-snow,
+  .float-bob,
+  .fruit-sway,
+  .soil-emerge {
+    animation: none !important;
+  }
 }
