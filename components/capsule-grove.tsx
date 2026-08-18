@@ -20,19 +20,22 @@ const HEIGHT = {
   md: 128,
 };
 
-function groveSpot(capsule: CapsuleListItem, now: number) {
+function groveSpot(capsule: CapsuleListItem, now: number, layout: "float" | "buried") {
   const seed = seedFromId(capsule.id);
   const emerge = capsuleEmergence(capsule.openAt, now);
   const open = isCapsuleOpen(capsule.openAt, now);
   const x = 10 + (seed % 800) / 10;
   const drift = ((seed >> 8) % 14) - 7;
-  const depth = 5 + (seed % 16);
   const left = Math.min(88, Math.max(10, x + drift * 0.25));
-  const size: keyof typeof HEIGHT = open || emerge > 0.78 ? "md" : emerge > 0.38 ? "sm" : "xs";
+  const floatY = 22 + (seed % 52);
+  const buriedY = 5 + (seed % 16);
+  const size: keyof typeof HEIGHT =
+    layout === "float" || open || emerge > 0.78 ? "md" : emerge > 0.38 ? "sm" : "xs";
+
   return {
     left: `${left}%`,
-    bottom: `${Math.min(24, Math.max(5, depth))}%`,
-    z: open ? 20 : 8 + Math.round(emerge * 8),
+    bottom: `${layout === "float" ? Math.min(74, Math.max(20, floatY)) : Math.min(24, Math.max(5, buriedY))}%`,
+    z: layout === "float" ? 12 + (seed % 8) : 8 + Math.round(emerge * 8),
     emerge,
     open,
     size,
@@ -47,13 +50,13 @@ export function CapsuleGrove({
   now,
   season,
   emptyMessage,
-  markers = "hover",
+  layout = "float",
 }: {
   capsules: CapsuleListItem[];
   now: number;
   season: TreeSeason;
   emptyMessage?: string;
-  markers?: "always" | "hover";
+  layout?: "float" | "buried";
 }) {
   return (
     <div className="relative h-[min(78vh,840px)] overflow-hidden rounded-[2.2rem] border border-white/40 bg-white/10 shadow-[0_30px_80px_-40px_rgba(28,25,23,0.45)]">
@@ -70,19 +73,19 @@ export function CapsuleGrove({
         </div>
       ) : (
         capsules.map((capsule) => {
-          const spot = groveSpot(capsule, now);
+          const spot = groveSpot(capsule, now, layout);
           const fullHeight = HEIGHT[spot.size];
-          const visible = spot.open
-            ? fullHeight
-            : Math.max(20, Math.round(fullHeight * (0.16 + spot.emerge * 0.84)));
-          const dirt = spot.open ? 0.16 : Math.max(0.22, 0.92 - spot.emerge * 0.45);
-          const showMarker = !spot.open && markers === "always";
+          const visible =
+            layout === "float"
+              ? fullHeight
+              : Math.max(20, Math.round(fullHeight * (0.16 + spot.emerge * 0.84)));
+          const dirt = layout === "float" ? 0.08 : Math.max(0.22, 0.92 - spot.emerge * 0.45);
 
           return (
             <Link
               key={capsule.id}
               href={`/capsule/${capsule.id}`}
-              className={`group absolute -translate-x-1/2 ${spot.emerge > 0.45 ? "soil-emerge" : ""}`}
+              className={`group absolute ${layout === "float" ? "float-bob" : "-translate-x-1/2"}`}
               style={{
                 left: spot.left,
                 bottom: spot.bottom,
@@ -92,18 +95,23 @@ export function CapsuleGrove({
               }}
               aria-label={`${capsuleTitle(capsule)} ${formatDday(capsule.openAt, now)}`}
             >
-              <span
-                className={`absolute bottom-[70%] z-20 ${
-                  spot.side === "left" ? "right-[58%]" : "left-[58%]"
-                } ${showMarker ? "block" : "hidden group-hover:block group-focus-visible:block"}`}
-              >
-                <CapsuleSignpost capsule={capsule} compact={markers === "hover"} />
-              </span>
+              {layout === "buried" ? (
+                <span
+                  className={`absolute bottom-[70%] z-20 block ${
+                    spot.side === "left" ? "right-[58%]" : "left-[58%]"
+                  }`}
+                >
+                  <CapsuleSignpost capsule={capsule} />
+                </span>
+              ) : null}
 
               <span className="relative flex flex-col items-center">
                 <span
                   className="relative overflow-hidden"
-                  style={{ height: visible, width: spot.size === "md" ? 68 : spot.size === "sm" ? 44 : 36 }}
+                  style={{
+                    height: visible,
+                    width: spot.size === "md" ? 68 : spot.size === "sm" ? 44 : 36,
+                  }}
                 >
                   <span className="absolute top-0 left-1/2 -translate-x-1/2">
                     <CapsuleFigure
@@ -114,11 +122,15 @@ export function CapsuleGrove({
                     />
                   </span>
                 </span>
-                {spot.emerge < 0.6 ? (
-                  <span className="absolute bottom-7 h-5 w-16 rounded-[100%] bg-[#6b4423]/45 blur-[1px]" />
+                {layout === "buried" ? (
+                  <>
+                    {spot.emerge < 0.6 ? (
+                      <span className="absolute bottom-7 h-5 w-16 rounded-[100%] bg-[#6b4423]/45 blur-[1px]" />
+                    ) : null}
+                    <span className="relative z-10 -mt-2 h-3 w-14 rounded-[100%] bg-[#6b4423]/70 blur-[0.4px]" />
+                    <span className="relative z-10 -mt-2 h-2 w-9 rounded-[100%] bg-[#4a3424]/55" />
+                  </>
                 ) : null}
-                <span className="relative z-10 -mt-2 h-3 w-14 rounded-[100%] bg-[#6b4423]/70 blur-[0.4px]" />
-                <span className="relative z-10 -mt-2 h-2 w-9 rounded-[100%] bg-[#4a3424]/55" />
                 <span className="mt-1 rounded-full bg-white/80 px-2 py-0.5 text-center text-[10px] tracking-wide text-stone-600 shadow-sm backdrop-blur-sm">
                   {formatDday(capsule.openAt, now)}
                 </span>

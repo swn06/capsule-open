@@ -72,13 +72,10 @@ export function CapsuleDashboard() {
       if (filter === "sealed") {
         return !open;
       }
-      if (filter === "open") {
-        return open;
-      }
       if (filter === "mine") {
-        return user ? capsule.ownerUid === user.uid : false;
+        return user ? capsule.ownerUid === user.uid && open : false;
       }
-      return true;
+      return open;
     });
   }, [capsules, filter, now, user]);
 
@@ -116,7 +113,7 @@ export function CapsuleDashboard() {
         <p className="text-xs tracking-wide text-stone-500">
           {filter === "sealed"
             ? "푯말에 묻은 날짜, 시간, 날씨, 받는 사람이 적혀 있어요"
-            : "D-Day가 가까울수록 흙을 밀고 유리병이 올라와요"}
+            : "열린 캡슐만 떠다녀요. 묻힌 자리는 땅속 버튼에서 볼 수 있어요"}
         </p>
       </div>
 
@@ -134,11 +131,13 @@ export function CapsuleDashboard() {
           capsules={visibleCapsules}
           now={now}
           season={treeSeason(theme)}
-          markers={filter === "sealed" || filter === "mine" ? "always" : "hover"}
+          layout={filter === "sealed" ? "buried" : "float"}
           emptyMessage={
-            filter === "mine"
-              ? "아직 이 나무 아래 묻은 캡슐이 없어요."
-              : "아직 묻힌 캡슐이 없어요."
+            filter === "sealed"
+              ? "아직 묻힌 캡슐이 없어요."
+              : filter === "mine"
+                ? "아직 열린 내 캡슐이 없어요. 묻힌 자리는 땅속 버튼에서 볼 수 있어요."
+                : "아직 열린 캡슐이 없어요. 땅속 버튼을 누르면 묻힌 자리를 볼 수 있어요."
           }
         />
       )}
